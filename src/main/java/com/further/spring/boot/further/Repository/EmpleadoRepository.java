@@ -1,0 +1,9 @@
+package com.further.spring.boot.further.Repository;
+
+import com.further.spring.boot.further.Entity.Empleado;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface EmpleadoRepository extends JpaRepository<Empleado, Long> {
+}
