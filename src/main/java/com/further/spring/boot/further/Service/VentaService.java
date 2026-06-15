@@ -35,7 +35,6 @@ public class VentaService {
     private EmpleadoRepository empleadoRepository;
 
 
-
     public List<VentaDTO> obtenerTodasVentas() {
         return ventaRepository.findAll().stream()
                 .map(ventaMapper::toDTO)
@@ -45,70 +44,150 @@ public class VentaService {
     public Optional<VentaDTO> obtenerVentaPorId(Long id) {
         return ventaRepository.findByIdWithAllRelations(id)
                 .map(ventaMapper::toDTO);
-    }@Transactional
+    }
+
+    @Transactional
     public VentaDTO crearVenta(VentaDTO ventaDTO) {
+
         Venta venta = new Venta();
 
-        Cliente cliente = clienteRepository.findById(ventaDTO.getClienteId())
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+        Cliente cliente = clienteRepository.findById(
+                        ventaDTO.getClienteId()
+                )
+                .orElseThrow(() ->
+                        new RuntimeException("Cliente no encontrado"));
 
-        Empleado empleado = empleadoRepository.findById(ventaDTO.getEmpleadoId())
-                .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
+        Empleado empleado = empleadoRepository.findById(
+                        ventaDTO.getEmpleadoId()
+                )
+                .orElseThrow(() ->
+                        new RuntimeException("Empleado no encontrado"));
 
-        venta.setTipoComprobante(ventaDTO.getTipoComprobante());
-        venta.setSerie(ventaDTO.getSerie());  // 👈 Guardar serie
-        venta.setNumeroComprobante(ventaDTO.getNumeroComprobante());
+        venta.setTipoComprobante(
+                ventaDTO.getTipoComprobante()
+        );
+
+        venta.setSerie(
+                ventaDTO.getSerie()
+        );
+
+        venta.setNumeroComprobante(
+                ventaDTO.getNumeroComprobante()
+        );
+
         venta.setCliente(cliente);
         venta.setEmpleado(empleado);
         venta.setFechaVenta(new Date());
-        venta.setMoneda(ventaDTO.getMoneda());
+        venta.setMoneda(
+                ventaDTO.getMoneda()
+        );
+
         venta.setEstado("BORRADOR");
         venta.setEstadoPago("PENDIENTE");
 
-        if (ventaDTO.getDetalles() == null || ventaDTO.getDetalles().isEmpty()) {
-            throw new RuntimeException("La venta debe tener al menos un detalle");
+        if (
+                ventaDTO.getDetalles() == null ||
+                        ventaDTO.getDetalles().isEmpty()
+        ) {
+            throw new RuntimeException(
+                    "La venta debe tener al menos un detalle"
+            );
         }
 
-        List<DetalleVenta> detalles = new ArrayList<>();
+        List<DetalleVenta> detalles =
+                new ArrayList<>();
+
         double subTotal = 0.0;
 
-        for (DetalleVentaDTO detalleDTO : ventaDTO.getDetalles()) {
-            Producto producto = productoRepository.findById(detalleDTO.getProductoId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+        for (
+                DetalleVentaDTO detalleDTO :
+                ventaDTO.getDetalles()
+        ) {
 
-            if (producto.getStock() < detalleDTO.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para el producto: " + producto.getNombre());
+            Producto producto =
+                    productoRepository.findById(
+                                    detalleDTO.getProductoId()
+                            )
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Producto no encontrado"
+                                    ));
+
+            if (detalleDTO.getCantidad() <= 0) {
+                throw new RuntimeException(
+                        "La cantidad debe ser mayor a cero"
+                );
             }
 
-            producto.setStock(producto.getStock() - detalleDTO.getCantidad());
+            if (
+                    producto.getStock() <
+                            detalleDTO.getCantidad()
+            ) {
+                throw new RuntimeException(
+                        "Stock insuficiente para el producto: "
+                                + producto.getNombre()
+                );
+            }
+
+            producto.setStock(
+                    producto.getStock()
+                            - detalleDTO.getCantidad()
+            );
+
             productoRepository.save(producto);
 
-            DetalleVenta detalle = new DetalleVenta();
+            DetalleVenta detalle =
+                    new DetalleVenta();
+
             detalle.setProducto(producto);
-            detalle.setCantidad(detalleDTO.getCantidad());
-            detalle.setPrecioUnitario(detalleDTO.getPrecioUnitario());
+
+            detalle.setCantidad(
+                    detalleDTO.getCantidad()
+            );
+
+            double precioVenta =
+                    producto.getPrecio_venta();
+
+            detalle.setPrecioUnitario(
+                    precioVenta
+            );
+
+            double subtotalDetalle =
+                    detalleDTO.getCantidad()
+                            * precioVenta;
+
+            detalle.setSubtotal(
+                    subtotalDetalle
+            );
+
             detalle.setVenta(venta);
 
-            double subtotalDetalle = detalleDTO.getCantidad() * detalleDTO.getPrecioUnitario();
-            detalle.setSubtotal(subtotalDetalle);
-
             subTotal += subtotalDetalle;
+
             detalles.add(detalle);
         }
 
-        double igv = subTotal * 0.18;
-        double total = subTotal + igv;
+        double igv =
+                Math.round(
+                        (subTotal * 0.18) * 100.0
+                ) / 100.0;
+
+        double total =
+                Math.round(
+                        (subTotal + igv) * 100.0
+                ) / 100.0;
 
         venta.setDetalles(detalles);
         venta.setSubTotal(subTotal);
         venta.setIgv(igv);
         venta.setTotal(total);
+        Venta ventaGuardada =
+                ventaRepository.save(venta);
+        return ventaMapper.toDTO(
+                ventaGuardada
+        );
 
-        Venta ventaGuardada = ventaRepository.save(venta);
-
-        return ventaMapper.toDTO(ventaGuardada);
     }
-
 
 
     public String obtenerProximoNumero(String tipoComprobante) {
@@ -184,7 +263,7 @@ public class VentaService {
             DetalleVenta detalle = new DetalleVenta();
             detalle.setProducto(producto);
             detalle.setCantidad(detalleDTO.getCantidad());
-            detalle.setPrecioUnitario(detalleDTO.getPrecioUnitario());
+            detalle.setPrecioUnitario(producto.getPrecio_venta());
             detalle.setVenta(venta);
 
             double subtotalDetalle = detalleDTO.getCantidad() * detalleDTO.getPrecioUnitario();
