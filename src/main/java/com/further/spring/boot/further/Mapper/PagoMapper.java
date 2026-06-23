@@ -55,6 +55,7 @@ public class PagoMapper {
         }
 
         dto.setMonto(pago.getMonto());
+        dto.setEstado(pago.getEstado());
         dto.setFecha_Pago(pago.getFecha_Pago());
         return dto;
     }
@@ -89,7 +90,7 @@ public class PagoMapper {
         metodoPago.setNombre(dto.getNombre());
         metodoPago.setMetodoPagoId(dto.getMetodoPagoId());
         pago.setMetodoPago(metodoPago);
-
+        pago.setEstado(dto.getEstado());
         pago.setMonto(dto.getMonto());
         pago.setFecha_Pago(dto.getFecha_Pago());
         return pago;

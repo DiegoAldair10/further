@@ -28,6 +28,10 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             "WHERE v.ventaId = :id")
     Optional<Venta> findByIdWithAllRelations(@Param("id") Long id);
 
-    @Query("SELECT COUNT(v) FROM Venta v WHERE v.numeroComprobante LIKE CONCAT(:serie, '%')")
-    Long countBySerie(@Param("serie") String serie);
+    @Query("""
+    SELECT MAX(v.numeroComprobante)
+    FROM Venta v
+    WHERE v.serie = :serie
+""")
+    String obtenerUltimoNumeroPorSerie(@Param("serie") String serie);
 }

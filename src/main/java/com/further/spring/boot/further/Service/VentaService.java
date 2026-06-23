@@ -34,6 +34,9 @@ public class VentaService {
     @Autowired
     private EmpleadoRepository empleadoRepository;
 
+    @Autowired
+    private PagoRepository pagoRepository;
+
 
     public List<VentaDTO> obtenerTodasVentas() {
         return ventaRepository.findAll().stream()
@@ -191,99 +194,246 @@ public class VentaService {
 
 
     public String obtenerProximoNumero(String tipoComprobante) {
-        // Normalizar el tipo de comprobante
-        String tipoComprobanteNormalizado = tipoComprobante.trim().toUpperCase();
-        String serie = "FACTURA".equals(tipoComprobanteNormalizado) ? "F001" : "B001";
-
-        Long correlativo = ventaRepository.countBySerie(serie) + 1; // ya lo tienes en el repo
+        String tipoNormalizado = tipoComprobante.trim().toUpperCase();
+        String serie = "FACTURA".equals(tipoNormalizado)
+                ? "F001"
+                : "B001";
+        String ultimoNumero = ventaRepository.obtenerUltimoNumeroPorSerie(serie);
+        long correlativo = 1;
+        if (ultimoNumero != null) {
+            correlativo = Long.parseLong(ultimoNumero) + 1;
+        }
         return String.format("%s-%06d", serie, correlativo);
+    }
+
+
+    @Transactional
+    public VentaDTO actualizarVenta(Long id, VentaDTO ventaDTO) {
+
+        Venta venta = ventaRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Venta no encontrada"
+                        ));
+
+        Cliente cliente = clienteRepository.findById(
+                        ventaDTO.getClienteId()
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Cliente no encontrado"
+                        ));
+
+        Empleado empleado = empleadoRepository.findById(
+                        ventaDTO.getEmpleadoId()
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Empleado no encontrado"
+                        ));
+
+        // Restaurar stock anterior
+        for (DetalleVenta detalle :
+                new ArrayList<>(venta.getDetalles())) {
+
+            Producto producto =
+                    detalle.getProducto();
+
+            producto.setStock(
+                    producto.getStock()
+                            + detalle.getCantidad()
+            );
+
+            productoRepository.save(producto);
+        }
+
+        venta.getDetalles().clear();
+
+        venta.setTipoComprobante(
+                ventaDTO.getTipoComprobante()
+        );
+
+        venta.setSerie(
+                ventaDTO.getSerie()
+        );
+
+        venta.setNumeroComprobante(
+                ventaDTO.getNumeroComprobante()
+        );
+
+        venta.setCliente(cliente);
+
+        venta.setEmpleado(empleado);
+
+        venta.setFechaVenta(
+                ventaDTO.getFechaVenta()
+        );
+
+        venta.setFecha_Creacion(
+                ventaDTO.getFecha_Creacion()
+        );
+
+        venta.setMoneda(
+                ventaDTO.getMoneda()
+        );
+
+        venta.setEstado(
+                ventaDTO.getEstado()
+        );
+
+        venta.setEstadoPago(
+                ventaDTO.getEstadoPago()
+        );
+
+        double subTotal = 0.0;
+
+        for (DetalleVentaDTO detalleDTO :
+                ventaDTO.getDetalles()) {
+
+            Producto producto =
+                    productoRepository.findById(
+                                    detalleDTO.getProductoId()
+                            )
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Producto no encontrado"
+                                    ));
+
+            if (detalleDTO.getCantidad() <= 0) {
+
+                throw new RuntimeException(
+                        "La cantidad debe ser mayor a cero"
+                );
+            }
+
+            if (
+                    producto.getStock()
+                            < detalleDTO.getCantidad()
+            ) {
+
+                throw new RuntimeException(
+                        "Stock insuficiente para el producto: "
+                                + producto.getNombre()
+                );
+            }
+
+            producto.setStock(
+                    producto.getStock()
+                            - detalleDTO.getCantidad()
+            );
+
+            productoRepository.save(producto);
+
+            double precioVenta =
+                    producto.getPrecio_venta();
+
+            double subtotalDetalle =
+                    detalleDTO.getCantidad()
+                            * precioVenta;
+
+            DetalleVenta detalle =
+                    new DetalleVenta();
+
+            detalle.setProducto(producto);
+
+            detalle.setCantidad(
+                    detalleDTO.getCantidad()
+            );
+
+            detalle.setPrecioUnitario(
+                    precioVenta
+            );
+
+            detalle.setSubtotal(
+                    subtotalDetalle
+            );
+
+            detalle.setVenta(venta);
+
+            venta.getDetalles().add(detalle);
+
+            subTotal += subtotalDetalle;
+        }
+
+        double igv =
+                Math.round(
+                        (subTotal * 0.18) * 100.0
+                ) / 100.0;
+
+        double total =
+                Math.round(
+                        (subTotal + igv) * 100.0
+                ) / 100.0;
+
+        venta.setSubTotal(subTotal);
+
+        venta.setIgv(igv);
+
+        venta.setTotal(total);
+
+        System.out.println(
+                "ACTUALIZAR VENTA -> ESTADO = "
+                        + venta.getEstado()
+        );
+
+        System.out.println(
+                "ACTUALIZAR VENTA -> ESTADO_PAGO = "
+                        + venta.getEstadoPago()
+        );
+
+        Venta ventaActualizada =
+                ventaRepository.save(venta);
+
+        return ventaMapper.toDTO(
+                ventaActualizada
+        );
     }
 
     @Transactional
     public void eliminarVenta(Long id) {
-        Venta venta = ventaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Venta no encontrada"));
 
-        for (DetalleVenta detalle : venta.getDetalles()) {
-            Producto producto = detalle.getProducto();
-            producto.setStock(producto.getStock() + detalle.getCantidad()); // 🔁 Restaurar stock
+        Venta venta = ventaRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Venta no encontrada"
+                        ));
+
+        // NO ELIMINAR SI TIENE PAGOS
+        if (
+                "PAGADA".equals(venta.getEstadoPago())
+                        ||
+                        "PARCIAL".equals(venta.getEstadoPago())
+        ) {
+
+            throw new RuntimeException(
+                    "No se puede eliminar una venta con pagos registrados"
+            );
+        }
+
+        // RESTAURAR STOCK
+
+        for (
+                DetalleVenta detalle :
+                new ArrayList<>(venta.getDetalles())
+        ) {
+
+            Producto producto =
+                    detalle.getProducto();
+
+            producto.setStock(
+                    producto.getStock()
+                            + detalle.getCantidad()
+            );
+
             productoRepository.save(producto);
         }
 
-        ventaRepository.delete(venta); // Elimina la venta y sus detalles (si está en cascade)
-    }
+        // ELIMINAR DETALLES
 
-    @Transactional
-    public VentaDTO actualizarVenta(Long id, VentaDTO ventaDTO) {
-        Venta venta = ventaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Venta no encontrada"));
-
-        Cliente cliente = clienteRepository.findById(ventaDTO.getClienteId())
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
-
-        Empleado empleado = empleadoRepository.findById(ventaDTO.getEmpleadoId())
-                .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
-
-        // Restaurar stock de productos de los detalles anteriores
-        for (DetalleVenta detalle : venta.getDetalles()) {
-            Producto producto = detalle.getProducto();
-            producto.setStock(producto.getStock() + detalle.getCantidad());
-            productoRepository.save(producto);
-        }
-
-        // Limpiar detalles anteriores
         venta.getDetalles().clear();
 
-        // Actualizar datos de la venta
-        venta.setTipoComprobante(ventaDTO.getTipoComprobante());
-        venta.setSerie(ventaDTO.getSerie());
-        venta.setNumeroComprobante(ventaDTO.getNumeroComprobante());
-        venta.setCliente(cliente);
-        venta.setEmpleado(empleado);
-        venta.setFechaVenta(ventaDTO.getFechaVenta());
-        venta.setFecha_Creacion(ventaDTO.getFecha_Creacion());
-        venta.setMoneda(ventaDTO.getMoneda());
-        venta.setEstado(ventaDTO.getEstado());
-        venta.setEstadoPago(ventaDTO.getEstadoPago());
-
-        List<DetalleVenta> nuevosDetalles = new ArrayList<>();
-        double subTotal = 0.0;
-
-        for (DetalleVentaDTO detalleDTO : ventaDTO.getDetalles()) {
-            Producto producto = productoRepository.findById(detalleDTO.getProductoId())
-                    .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
-
-            if (producto.getStock() < detalleDTO.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para el producto: " + producto.getNombre());
-            }
-
-            producto.setStock(producto.getStock() - detalleDTO.getCantidad());
-            productoRepository.save(producto);
-
-            DetalleVenta detalle = new DetalleVenta();
-            detalle.setProducto(producto);
-            detalle.setCantidad(detalleDTO.getCantidad());
-            detalle.setPrecioUnitario(producto.getPrecio_venta());
-            detalle.setVenta(venta);
-
-            double subtotalDetalle = detalleDTO.getCantidad() * detalleDTO.getPrecioUnitario();
-            detalle.setSubtotal(subtotalDetalle);
-
-            subTotal += subtotalDetalle;
-            nuevosDetalles.add(detalle);
-        }
-
-        double igv = subTotal * 0.18;
-        double total = subTotal + igv;
-
-        venta.setDetalles(nuevosDetalles);
-        venta.setSubTotal(subTotal);
-        venta.setIgv(igv);
-        venta.setTotal(total);
-
-        Venta ventaActualizada = ventaRepository.save(venta);
-
-        return ventaMapper.toDTO(ventaActualizada);
+        // ELIMINAR VENTA
+    
+        ventaRepository.delete(venta);
     }
-
 }

@@ -33,4 +33,8 @@ public class Pago {
 
     @Column(name = "FECHA_PAGO")
     private Date fecha_Pago = new Date();
+
+    @Column(name = "ESTADO")
+    private String estado;
+
 }

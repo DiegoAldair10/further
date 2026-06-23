@@ -4,6 +4,7 @@ package com.further.spring.boot.further.Entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -59,8 +60,8 @@ public class Venta {
     private Date fecha_Creacion = new Date();
 
 
-    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<DetalleVenta> detalles;
+    @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<DetalleVenta> detalles = new ArrayList<>();
 
 
 }

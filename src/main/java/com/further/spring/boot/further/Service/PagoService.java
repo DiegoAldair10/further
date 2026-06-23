@@ -9,7 +9,10 @@ import com.further.spring.boot.further.Repository.MetodoPagoRepository;
 import com.further.spring.boot.further.Repository.PagoRepository;
 import com.further.spring.boot.further.Repository.VentaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Date;
 import java.util.List;
@@ -31,7 +34,6 @@ public class PagoService {
     @Autowired
     private PagoMapper pagoMapper;
 
-
     public List<PagoDTO> obtenerTodosPagos() {
         return pagoRepository.findAll().stream()
                 .map(pagoMapper::ToDTO)
@@ -40,32 +42,116 @@ public class PagoService {
 
     public Optional<PagoDTO> obtenerPagoPorId(Long id) {
         return pagoRepository.findById(id)
-                .map(pagoMapper ::ToDTO);
+                .map(pagoMapper::ToDTO);
     }
 
+    @Transactional
     public PagoDTO crearPago(PagoDTO pagoDTO) {
-        Pago pago = new Pago();
-        Venta venta = ventaRepository.findById(pagoDTO.getVentaId())
-                .orElseThrow(() -> new RuntimeException("Venta no encontrada"));
-        MetodoPago metodoPago = metodoPagoRepository.findById(pagoDTO.getMetodoPagoId())
-                .orElseThrow(() -> new RuntimeException("Método de pago no encontrado"));
-        pago.setVenta(venta);
-        pago.setMetodoPago(metodoPago);
-        pago.setMonto(pagoDTO.getMonto());
-        pago.setFecha_Pago(new Date()); // Se asigna automáticamente aquí
 
-        Pago pagoGuardado = pagoRepository.save(pago);
-        // Cambiar estado de la venta a "PAGADA" y guardar
-        venta.setEstadoPago("PAGADA");
+        Venta venta = ventaRepository.findById(
+                        pagoDTO.getVentaId()
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Venta no encontrada"
+                        ));
+
+        // NO PAGAR VENTA ANULADA
+        if ("ANULADA".equals(venta.getEstado())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No se puede registrar un pago para una venta anulada"
+            );
+        }
+        Long cantidadPagos =
+                pagoRepository.contarPagosActivosPorVenta(
+                        pagoDTO.getVentaId()
+                );
+
+        if (cantidadPagos > 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "La venta ya tiene un pago PAGADO registrado"
+            );
+        }
+
+        MetodoPago metodoPago =
+                metodoPagoRepository.findById(
+                                pagoDTO.getMetodoPagoId()
+                        )
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Método de pago no encontrado"
+                                ));
+
+        Pago pago = new Pago();
+
+        pago.setEstado("PAGADO");
+
+        pago.setVenta(venta);
+
+        pago.setMetodoPago(metodoPago);
+
+        // MONTO AUTOMÁTICO
+        pago.setMonto(
+                venta.getTotal()
+        );
+
+        pago.setFecha_Pago(
+                new Date()
+        );
+
+        Pago pagoGuardado =
+                pagoRepository.save(pago);
+
+        // ACTUALIZAR VENTA
         venta.setEstado("EMITIDA");
+        venta.setEstadoPago("PAGADA");
+
+        System.out.println(
+                "CREAR PAGO -> ESTADO = "
+                        + venta.getEstado()
+        );
+
+        System.out.println(
+                "CREAR PAGO -> ESTADO_PAGO = "
+                        + venta.getEstadoPago()
+        );
+
+
         ventaRepository.save(venta);
-        return pagoMapper.ToDTO(pagoGuardado);
+
+        return pagoMapper.ToDTO(
+                pagoGuardado
+        );
     }
 
+    @Transactional
     public void eliminarPago(Long id) {
-        if (!pagoRepository.existsById(id)) {
-            throw new RuntimeException("Cliente no encontrado");
+
+        Pago pago = pagoRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Pago no encontrado"
+                        ));
+
+        // EVITAR ANULAR DOS VECES
+        if ("ANULADO".equals(pago.getEstado())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El pago ya fue anulado"
+            );
         }
-        pagoRepository.deleteById(id);
+
+        pago.setEstado("ANULADO");
+        pagoRepository.save(pago);
+        Venta venta = pago.getVenta();
+        venta.setEstado("BORRADOR");
+        venta.setEstadoPago("PENDIENTE");
+
+        ventaRepository.save(venta);
     }
 }
