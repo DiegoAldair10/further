@@ -1,13 +1,16 @@
 package com.further.spring.boot.further.Service;
 
 import com.further.spring.boot.further.Dto.UserRequestDTO;
+import com.further.spring.boot.further.Entity.Empleado;
 import com.further.spring.boot.further.Entity.Roles;
 import com.further.spring.boot.further.Entity.Usuarios;
 import com.further.spring.boot.further.Exception.BusinessException;
 import com.further.spring.boot.further.Exception.ResourceNotFoundException;
+import com.further.spring.boot.further.Repository.EmpleadoRepository;
 import com.further.spring.boot.further.Repository.RoleRepository;
 import com.further.spring.boot.further.Repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +26,9 @@ public class UserService {
     private final RoleRepository roleRepo;
     private final PasswordEncoder encoder;
 
+    @Autowired
+    private EmpleadoRepository empleadoRepository;
+
     public Usuarios create(UserRequestDTO req) {
 
         if (repo.findByEmail(req.getEmail()).isPresent()) {
@@ -37,6 +43,12 @@ public class UserService {
         user.setPassword(encoder.encode(req.getPassword()));
         user.setEstado(req.getEstado());
         user.setRoles(getRoles(req.getRoles()));
+
+        Empleado empleado = empleadoRepository.findById(req.getEmpleadoId())
+                .orElseThrow(() ->
+                        new RuntimeException("Empleado no encontrado"));
+
+        user.setEmpleado(empleado);
 
         return repo.save(user);
     }
@@ -67,6 +79,16 @@ public class UserService {
         if (req.getRoles() != null && !req.getRoles().isEmpty()) {
             user.setRoles(getRoles(req.getRoles()));
         }
+
+        if (req.getEmpleadoId() != null) {
+            Empleado empleado = empleadoRepository.findById(req.getEmpleadoId())
+                    .orElseThrow(() ->
+                            new RuntimeException("Empleado no encontrado")
+                    );
+
+            user.setEmpleado(empleado);
+        }       
+
 
         return repo.save(user);
     }

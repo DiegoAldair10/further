@@ -11,4 +11,5 @@ public class UserRequestDTO {
     private String password;
     private Integer estado;
     private Set<String> roles;
+    private Long empleadoId;
 }

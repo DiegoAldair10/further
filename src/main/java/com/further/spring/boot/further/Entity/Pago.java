@@ -34,7 +34,12 @@ public class Pago {
     @Column(name = "FECHA_PAGO")
     private Date fecha_Pago = new Date();
 
+    @ManyToOne
+    @JoinColumn(name = "USUARIOID")
+    private Usuarios usuario;
+
     @Column(name = "ESTADO")
     private String estado;
+
 
 }

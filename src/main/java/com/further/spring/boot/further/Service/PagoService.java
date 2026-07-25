@@ -3,13 +3,17 @@ package com.further.spring.boot.further.Service;
 import com.further.spring.boot.further.Dto.PagoDTO;
 import com.further.spring.boot.further.Entity.MetodoPago;
 import com.further.spring.boot.further.Entity.Pago;
+import com.further.spring.boot.further.Entity.Usuarios;
 import com.further.spring.boot.further.Entity.Venta;
 import com.further.spring.boot.further.Mapper.PagoMapper;
 import com.further.spring.boot.further.Repository.MetodoPagoRepository;
 import com.further.spring.boot.further.Repository.PagoRepository;
+import com.further.spring.boot.further.Repository.UsuarioRepository;
 import com.further.spring.boot.further.Repository.VentaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,10 +36,48 @@ public class PagoService {
     private MetodoPagoRepository metodoPagoRepository;
 
     @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
     private PagoMapper pagoMapper;
 
     public List<PagoDTO> obtenerTodosPagos() {
-        return pagoRepository.findAll().stream()
+
+        Authentication authentication =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+
+        String email =
+                authentication.getName();
+
+        Usuarios usuario =
+                usuarioRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuario no encontrado"
+                                ));
+
+        boolean esAdmin =
+                usuario.getRoles()
+                        .stream()
+                        .anyMatch(r ->
+                                "ADMIN".equals(r.getNombre()));
+
+        List<Pago> pagos;
+
+        if (esAdmin) {
+
+            pagos = pagoRepository.findAll();
+
+        } else {
+
+            pagos = pagoRepository.findByUsuarioUsuariosId(
+                    usuario.getUsuariosId()
+            );
+        }
+
+        return pagos.stream()
                 .map(pagoMapper::ToDTO)
                 .collect(Collectors.toList());
     }
@@ -87,6 +129,23 @@ public class PagoService {
                                 ));
 
         Pago pago = new Pago();
+
+        Authentication authentication =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+
+        String email =
+                authentication.getName();
+
+        Usuarios usuario =
+                usuarioRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuario no encontrado"
+                                ));
+
+        pago.setUsuario(usuario);
 
         pago.setEstado("PAGADO");
 

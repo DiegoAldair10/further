@@ -34,4 +34,8 @@ public class Usuarios {
     )
     private Set<Roles> roles = new HashSet<>();
 
+    @ManyToOne
+    @JoinColumn(name = "EMPLEADOID")
+    private Empleado empleado;
+
 }

@@ -3,11 +3,9 @@ import com.further.spring.boot.further.Dto.AuthResponse;
 import com.further.spring.boot.further.Dto.LoginRequestDTO;
 import com.further.spring.boot.further.Service.AuthService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+@CrossOrigin(origins = "http://localhost:63842")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor

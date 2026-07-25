@@ -8,6 +8,8 @@ import com.further.spring.boot.further.Mapper.VentasMapper;
 import com.further.spring.boot.further.Repository.*;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -37,9 +39,44 @@ public class VentaService {
     @Autowired
     private PagoRepository pagoRepository;
 
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
 
     public List<VentaDTO> obtenerTodasVentas() {
-        return ventaRepository.findAll().stream()
+
+        Authentication authentication =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+
+        String email =
+                authentication.getName();
+
+        Usuarios usuario =
+                usuarioRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuario autenticado no encontrado"
+                                ));
+
+        boolean esAdmin =
+                usuario.getRoles()
+                        .stream()
+                        .anyMatch(rol ->
+                                "ADMIN".equals(rol.getNombre()));
+
+        List<Venta> ventas;
+
+        if (esAdmin) {
+            ventas = ventaRepository.findAll();
+        } else {
+            ventas = ventaRepository.findByUsuarioUsuariosId(
+                    usuario.getUsuariosId()
+            );
+        }
+
+        return ventas.stream()
                 .map(ventaMapper::toDTO)
                 .collect(Collectors.toList());
     }
@@ -53,6 +90,23 @@ public class VentaService {
     public VentaDTO crearVenta(VentaDTO ventaDTO) {
 
         Venta venta = new Venta();
+
+        Authentication authentication =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication();
+        String email =
+                authentication.getName();
+
+        Usuarios usuario =
+                usuarioRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuario autenticado no encontrado"
+                                ));
+
+        venta.setUsuario(usuario);
+
 
         Cliente cliente = clienteRepository.findById(
                         ventaDTO.getClienteId()
@@ -193,17 +247,60 @@ public class VentaService {
     }
 
 
-    public String obtenerProximoNumero(String tipoComprobante) {
-        String tipoNormalizado = tipoComprobante.trim().toUpperCase();
-        String serie = "FACTURA".equals(tipoNormalizado)
-                ? "F001"
-                : "B001";
-        String ultimoNumero = ventaRepository.obtenerUltimoNumeroPorSerie(serie);
+    public String obtenerProximoNumero(
+            String tipoComprobante
+    ) {
+
+        String tipoNormalizado =
+                tipoComprobante
+                        .trim()
+                        .toUpperCase();
+
+        String serie =
+                "FACTURA".equals(tipoNormalizado)
+                        ? "F001"
+                        : "B001";
+
+        String ultimoNumero =
+                ventaRepository
+                        .obtenerUltimoNumeroPorSerie(
+                                serie
+                        );
+
         long correlativo = 1;
-        if (ultimoNumero != null) {
-            correlativo = Long.parseLong(ultimoNumero) + 1;
+
+        if (
+                ultimoNumero != null
+                        &&
+                        !ultimoNumero.isBlank()
+        ) {
+
+            if (
+                    ultimoNumero.contains("-")
+            ) {
+
+                String[] partes =
+                        ultimoNumero.split("-");
+
+                correlativo =
+                        Long.parseLong(
+                                partes[1]
+                        ) + 1;
+
+            } else {
+
+                correlativo =
+                        Long.parseLong(
+                                ultimoNumero
+                        ) + 1;
+            }
         }
-        return String.format("%s-%06d", serie, correlativo);
+
+        return String.format(
+                "%s-%06d",
+                serie,
+                correlativo
+        );
     }
 
 
@@ -433,7 +530,7 @@ public class VentaService {
         venta.getDetalles().clear();
 
         // ELIMINAR VENTA
-    
+
         ventaRepository.delete(venta);
     }
 }

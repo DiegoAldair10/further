@@ -59,9 +59,12 @@ public class Venta {
     @Column(name = "FECHA_CREACION")
     private Date fecha_Creacion = new Date();
 
-
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<DetalleVenta> detalles = new ArrayList<>();
+
+    @ManyToOne
+    @JoinColumn(name = "USUARIOID")
+    private Usuarios usuario;
 
 
 }
