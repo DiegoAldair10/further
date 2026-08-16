@@ -4,6 +4,7 @@ package com.further.spring.boot.further.Service;
 import com.further.spring.boot.further.Dto.DetalleVentaDTO;
 import com.further.spring.boot.further.Dto.VentaDTO;
 import com.further.spring.boot.further.Entity.*;
+import com.further.spring.boot.further.Exception.TipoMovimientoKardex;
 import com.further.spring.boot.further.Mapper.VentasMapper;
 import com.further.spring.boot.further.Repository.*;
 import jakarta.transaction.Transactional;
@@ -41,6 +42,9 @@ public class VentaService {
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private KardexService kardexService;
 
 
     public List<VentaDTO> obtenerTodasVentas() {
@@ -190,6 +194,19 @@ public class VentaService {
                     producto.getStock()
                             - detalleDTO.getCantidad()
             );
+
+
+            kardexService.registrarMovimiento(
+                    producto,
+                    TipoMovimientoKardex.SALIDA,
+                    "VENTA",
+                    detalleDTO.getCantidad(),
+                    producto.getStock() + detalleDTO.getCantidad(),
+                    producto.getStock(),
+                    "Venta realizada"
+
+            );
+            
 
             productoRepository.save(producto);
 

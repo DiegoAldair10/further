@@ -6,10 +6,7 @@ import com.further.spring.boot.further.Entity.Pago;
 import com.further.spring.boot.further.Entity.Usuarios;
 import com.further.spring.boot.further.Entity.Venta;
 import com.further.spring.boot.further.Mapper.PagoMapper;
-import com.further.spring.boot.further.Repository.MetodoPagoRepository;
-import com.further.spring.boot.further.Repository.PagoRepository;
-import com.further.spring.boot.further.Repository.UsuarioRepository;
-import com.further.spring.boot.further.Repository.VentaRepository;
+import com.further.spring.boot.further.Repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -25,6 +22,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class PagoService {
+
+    @Autowired
+    private CompraRepository compraRepository;
 
     @Autowired
     private PagoRepository pagoRepository;

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface ProductoRepository extends JpaRepository<Producto, Long> {
 
@@ -16,4 +18,31 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     @Transactional
     @Query("UPDATE Producto p SET p.stock = p.stock - :cantidad WHERE p.productoId = :productoId AND p.stock >= :cantidad")
     int disminuirStock(@Param("productoId") Long productoId, @Param("cantidad") Integer cantidad);
+
+    @Query("SELECT COALESCE(SUM(p.stock),0) FROM Producto p")
+    Integer obtenerStockTotal();
+
+    @Query("SELECT COUNT(p) FROM Producto p WHERE p.stock <= 5")
+    Long obtenerProductosStockBajo();
+
+    @Query("""
+            SELECT p
+            FROM Producto p
+            WHERE p.stock<=5
+            ORDER BY p.stock ASC
+            """)
+    List<Producto> obtenerProductosStockBajos();
+
+    @Query("""
+            SELECT
+            p.categoria.nombre,
+            COALESCE(SUM(p.stock),0)
+            
+            FROM Producto p
+            
+            GROUP BY p.categoria.nombre
+            
+            ORDER BY p.categoria.nombre
+            """)
+    List<Object[]> obtenerStockCategoria();
 }

@@ -1,5 +1,6 @@
 package com.further.spring.boot.further.Controller;
 
+import com.further.spring.boot.further.Dto.CompraDTO;
 import com.further.spring.boot.further.Entity.Compra;
 import com.further.spring.boot.further.Service.CompraService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +18,11 @@ public class CompraController {
     private CompraService compraService;
 
     @GetMapping
-    public List<Compra> obtenerTodasCompras() {
+    public List<CompraDTO> obtenerTodasCompras() {
         return compraService.obtenerTodasCompras();
     }
+
+
 
     @GetMapping("/{id}")
     public ResponseEntity<Compra> obtenerCompraPorId(@PathVariable Long id) {
@@ -29,13 +32,28 @@ public class CompraController {
     }
 
     @PostMapping
-    public Compra crearCompra(@RequestBody Compra compra) {
-        return compraService.crearCompra(compra);
-    }
+    public ResponseEntity<CompraDTO> crearCompra(
+            @RequestBody CompraDTO compraDTO){
 
+        return ResponseEntity.ok(
+                compraService.crearCompra(compraDTO));
+
+    }
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminarCompra(@PathVariable Long id) {
         compraService.eliminarCompra(id);
         return ResponseEntity.noContent().build();
+    }
+	
+	@GetMapping("/proximo-numero/{tipoComprobante}")
+    public ResponseEntity<String> getProximoNumero(@PathVariable String tipoComprobante) {
+        String proximoNumero = compraService.obtenerProximoNumero(tipoComprobante);
+        return ResponseEntity.ok(proximoNumero);
+    }
+
+    @PutMapping("/{id}/pagar")
+    public ResponseEntity<CompraDTO> pagarCompra(@PathVariable Long id) {
+        CompraDTO compraPagada = compraService.registrarPagoCompra(id);
+        return ResponseEntity.ok(compraPagada);
     }
 }
